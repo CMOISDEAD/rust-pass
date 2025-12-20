@@ -1,0 +1,10 @@
+[package]
+name = "rust-pass"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+cli-clipboard = "0.4.0"
+copypasta = "0.10.2"
+iced = "0.14.0"
+walkdir = "2.5.0"

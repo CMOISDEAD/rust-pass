@@ -45,7 +45,7 @@ impl AppState {
     }
 
     fn theme(&self) -> Theme {
-        Theme::Ferra
+        Theme::Moonfly
     }
 
     fn new() -> (Self, Task<Message>) {
@@ -143,13 +143,7 @@ impl AppState {
             .take(6)
             .fold(column![], |col, entry| col.push(text(entry.0)));
 
-        let status = if self.loading {
-            text("Loading passwords…")
-        } else {
-            text("")
-        };
-
-        let content = column![status, input, results].spacing(10);
+        let content = column![input, results].spacing(10);
 
         container(content)
             .padding(20)

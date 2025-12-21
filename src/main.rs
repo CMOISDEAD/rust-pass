@@ -3,40 +3,57 @@ mod utils;
 
 use iced::{
     Length, Task, Theme, exit,
-    widget::{Container, column, combo_box, container, text},
+    widget::{Container, column, container, operation::focus, text, text_input},
     window,
 };
+use methods::ParsedPassword;
+use std::collections::HashMap;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum ViewMode {
+    PasswordList, // list all pass elements
+    KeyValueView, // list each key in password file
+}
+
+impl Default for ViewMode {
+    fn default() -> Self {
+        ViewMode::PasswordList
+    }
+}
 
 #[derive(Default)]
 struct AppState {
+    mode: ViewMode,
     loading: bool,
-    entries: combo_box::State<methods::PasswordFile>,
-    selected: Option<methods::PasswordFile>,
+    content: String,
+    all_entries: HashMap<String, String>,
+    filtered: HashMap<String, String>,
 }
 
 #[derive(Debug, Clone)]
 enum Message {
-    Load,
-    Loaded(Vec<methods::PasswordFile>),
-    Select(methods::PasswordFile),
+    Loaded(HashMap<String, String>),
+    ContentChange(String),
+    Submit,
     PasswordLoaded(String),
     Error(String),
 }
 
 impl AppState {
     fn title(&self) -> String {
-        String::from("pass-rust")
+        "pass-rust".into()
     }
 
     fn theme(&self) -> Theme {
-        Theme::TokyoNight
+        Theme::Ferra
     }
 
     fn new() -> (Self, Task<Message>) {
         (
             Self {
+                mode: ViewMode::PasswordList,
                 loading: true,
-                ..Self::default()
+                ..Default::default()
             },
             Task::perform(async { methods::get_password_files() }, Message::Loaded),
         )
@@ -44,49 +61,95 @@ impl AppState {
 
     fn update(&mut self, message: Message) -> Task<Message> {
         match message {
-            Message::Load => {
-                self.loading = true;
-                Task::perform(async { methods::get_password_files() }, Message::Loaded)
-            }
             Message::Loaded(entries) => {
-                self.entries = combo_box::State::new(entries);
+                self.mode = ViewMode::PasswordList;
+                self.all_entries = entries.clone();
+                self.filtered = entries;
                 self.loading = false;
+                focus("input")
+            }
+
+            Message::ContentChange(value) => {
+                self.content = value.clone();
+
+                self.filtered = self
+                    .all_entries
+                    .clone()
+                    .into_iter()
+                    .filter(|(k, _v)| k.contains(&value))
+                    .collect();
+
                 Task::none()
             }
-            Message::Select(value) => {
-                self.selected = Some(value.clone());
 
-                Task::perform(
-                    async move { methods::get_password(&value.relative) },
-                    |result| match result {
-                        Ok(password) => Message::PasswordLoaded(password),
-                        Err(err) => Message::Error(err),
-                    },
-                )
+            Message::Submit => {
+                let Some((key, value)) = self.filtered.iter().next() else {
+                    return Task::none();
+                };
+
+                match self.mode {
+                    ViewMode::PasswordList => {
+                        let name = key.clone();
+
+                        Task::perform(async move { methods::get_password_content(&name) }, |res| {
+                            match res {
+                                Ok(p) => Message::PasswordLoaded(p),
+                                Err(e) => Message::Error(e),
+                            }
+                        })
+                    }
+
+                    ViewMode::KeyValueView => {
+                        let a = value.to_string();
+                        Task::perform(async {}, |_| Message::PasswordLoaded(a))
+                    }
+                }
             }
+
             Message::PasswordLoaded(password) => {
-                let _ = utils::copy_to_clipboard(password).ok();
+                match methods::parse_kv(&password) {
+                    ParsedPassword::KeyValue(map) => {
+                        self.all_entries = map.clone();
+                        self.filtered = map;
+                        self.content.clear();
+                        self.mode = ViewMode::KeyValueView;
+                        focus("input")
+                    }
+
+                    ParsedPassword::Raw(value) => {
+                        let _ = utils::copy_to_clipboard(&value);
+                        exit()
+                    }
+                }
+            }
+
+            Message::Error(e) => {
+                println!("something goes wrong");
+                println!("Error: {}", e);
                 exit()
             }
-            Message::Error(_) => todo!(),
         }
     }
 
     fn view(&self) -> Container<'_, Message> {
-        let content = column![
-            if self.loading {
-                text("Loading passwords...")
-            } else {
-                text("Passwords loaded")
-            },
-            combo_box(
-                &self.entries,
-                "Select your password",
-                self.selected.as_ref(),
-                Message::Select,
-            ),
-        ]
-        .spacing(10);
+        let input = text_input("Search password", &self.content)
+            .on_input(Message::ContentChange)
+            .on_submit(Message::Submit)
+            .id("input");
+
+        let results = self
+            .filtered
+            .iter()
+            .take(6)
+            .fold(column![], |col, entry| col.push(text(entry.0)));
+
+        let status = if self.loading {
+            text("Loading passwords…")
+        } else {
+            text("")
+        };
+
+        let content = column![status, input, results].spacing(10);
 
         container(content)
             .padding(20)
@@ -98,11 +161,9 @@ impl AppState {
 
 fn main() -> iced::Result {
     let window = window::Settings {
-        size: iced::Size::new(400.0, 400.0),
+        size: iced::Size::new(400.0, 200.0),
         level: window::Level::AlwaysOnTop,
         position: window::Position::Centered,
-        resizable: (true),
-        decorations: (true),
         ..Default::default()
     };
 

@@ -2,7 +2,7 @@ use std::process::{Command, Stdio};
 use std::io::Write;
 
 
-pub fn copy_to_clipboard(text: String) -> Result<(), String> {
+pub fn copy_to_clipboard(text: &String) -> Result<(), String> {
     let mut child = Command::new("wl-copy")
         .stdin(Stdio::piped())
         .spawn()

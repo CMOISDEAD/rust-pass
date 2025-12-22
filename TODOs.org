@@ -1,0 +1,16 @@
+:PROPERTIES:
+:CATEGORY: rust-pass
+:END:
+
+* TODO Implement keyboard based basic navigation       :NAVIGATION:UI:
+  * [2/2] `ESC` key logic. [2/2]
+    * [X] If current state is =PasswordList= -> Exit App.
+    * [X] If current state is =KeyValueView= -> Switch back to =PasswordList=.
+  * [5/5] 'vi keys' navigation. [5/5]
+    * [X] `C-h` (left) -> Backward (close / return to passwordList).
+    * [X] `C-j` (down).
+    * [X] `C-k` (up).
+    * [X] `C-l` (right) -> Enter.
+    * [X] `C-q` -> Exit App.
+  * [X] 'Tab' key to focus input again.
+  * [X] shadow vec.
